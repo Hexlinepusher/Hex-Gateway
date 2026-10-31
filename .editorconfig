@@ -1,0 +1,37 @@
+# @/.editorconfig - 确保不同编辑器写入一致的格式，避免协作产生格式噪音
+# - ./.gitattributes
+
+root = true # 根配置
+
+# ========== 默认规则 ========== #
+[*]
+charset = utf-8 # 字符编码
+end_of_line = lf # 换行符
+insert_final_newline = true # 文件末尾换行
+trim_trailing_whitespace = true # 删除行尾空白
+indent_style = space # 空格缩进
+indent_size = 2 # 缩进宽度
+
+# ========== 文本例外 ========== #
+# ---- Markdown ---- #
+[*.{md,mdx}]
+trim_trailing_whitespace = false # 双空格换行语法需要保留行尾空白
+max_line_length = off # 不限制行宽
+# ---- 许可证文本 ---- #
+[LICENSE]
+max_line_length = off # 保留原始排版
+# ---- 补丁文件 ---- #
+[*.{patch,diff}]
+trim_trailing_whitespace = false # 保留补丁中的原始空白
+max_line_length = off # 不限制行宽
+# ---- 生成锁文件 ---- #
+[*.lock]
+max_line_length = off # 生成文件不限制行宽
+
+# ========== 缩进与换行例外 ========== #
+# ---- Makefile ---- #
+[{Makefile,*.mk}]
+indent_style = tab # 语法强制 Tab
+# ---- Windows批处理 ---- #
+[*.{bat,cmd}]
+end_of_line = crlf # 批处理文件使用 CRLF

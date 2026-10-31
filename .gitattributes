@@ -1,0 +1,49 @@
+# @/.gitattributes - 确保 Git 在所有平台一致处理文本换行和二进制文件
+# - ./.editorconfig
+
+# ========== 文本文件 ========== #
+* text=auto eol=lf
+# ---- Windows脚本 ---- #
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# ---- 文本资源 ---- #
+*.svg text eol=lf
+
+# ========== 二进制文件 ========== #
+# ---- 图片 ---- #
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+# ---- 字体 ---- #
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+# ---- 媒体 ---- #
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+*.webm binary
+# ---- 压缩包 ---- #
+*.zip binary
+*.tar binary
+*.gz binary
+*.tgz binary
+*.7z binary
+*.rar binary
+# ---- 文档和数据 ---- #
+*.pdf binary
+*.sqlite binary
+*.sqlite3 binary
+*.db binary
+# ---- 可执行与库文件 ---- #
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.wasm binary
