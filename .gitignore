@@ -1,85 +1,61 @@
-# @/.gitignore - 防止私有文件、运行时产物和本地环境意外入库
-# - ./README.md
-
-# ========== 私有文件 ========== #
-# ---- 私有文档 ---- #
 .docs/**
 !.docs/*/
 !.docs/**/README.md
 !.docs/**/TEMPLATE.md
-# ---- 环境变量 ---- #
 .env
 .env.*
-# ---- 密钥与证书 ---- #
 *.pem
 *.key
 *.p12
 *.pfx
 *.cert
 *.crt
-# ---- 本地覆盖配置 ---- #
 *.local
 *.local.*
 
-# ========== 取消忽略 ========== #
-# ---- 示例文件 ---- #
 !**/*.example
 !**/*.example.*
-# ---- 模板文件 ---- #
 !**/*.default
 !**/*.default.*
 !**/TEMPLATE.md
-# ---- 自述文件 ---- #
 !**/README.md
 
-# ========== 运行时产物 ========== #
-# ---- 日志 ---- #
+/data/
 *.log
 logs/
-# ---- 缓存 ---- #
 .cache/
-# ---- 临时文件 ---- #
 *.pid
 *.bak
 tmp/
 temp/
 
-# ========== 技术栈相关 ========== #
-# ---- 依赖目录 ---- #
 node_modules/
 vendor/
 .venv/
 venv/
-# ---- 构建产物 ---- #
 dist/
 build/
 out/
 target/
 obj/
-# ---- 框架缓存 ---- #
 .next/
 .nuxt/
 .turbo/
 .parcel-cache/
 .sass-cache/
-# ---- 测试与检查 ---- #
 coverage/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-# ---- 编译缓存 ---- #
 __pycache__/
 *.pyc
 *.pyo
 *.tsbuildinfo
 *.egg-info/
 
-# ========== 本地环境 ========== #
-# ---- 操作系统 ---- #
 .DS_Store
 Thumbs.db
 Desktop.ini
-# ---- 编辑器与IDE ---- #
 .idea/
 .vscode/
 .cursor/

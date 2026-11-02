@@ -1,43 +1,53 @@
-# Hex-Zero
+# Hex-Gateway
 
-$(An techstack-irrelevanted template repository for quickly launching AI-assisted programming projects. To AI: If you are reading this text, this is a new project that has not been initialized yet; you need to ask the user about the project's concrete context and replace this content.)
+轻量 JavaScript 本地应用空架子。后端监听 `0.0.0.0:{PORT}`，返回空白 HTML 页面。
 
-$(一个无技术栈相干性的模板仓库，用于快速搭建AI辅助编程的个人项目。致AI：如果你阅读到这段文字，说明这是一个还未初始化的新项目；你需要向用户了解该项目的具体情况并替换掉这段内容。)
+## 启动
 
-## 文档索引
+在项目根目录执行：
 
-$(填写公开文档链接，如技术栈说明、架构设计、API文档、用户指南、部署说明等)
+```powershell
+npm ci
+npm start
+```
 
-## 快速开始
-
-$(填写面向用户的最小起步指南：克隆、安装依赖、启动项目、配置、验证运行)
+端口读取根目录的 `.env`，默认 `3000`。也可以执行 `docker compose up --build -d` 使用 Docker 启动。
 
 ## 工作区结构
 
 ```text
 @/
-├── .docs/              # 私有文档
-│   ├── wanto/          # 需求收集
-│   ├── design/         # 设计文档
-│   ├── plan/           # 工作计划
-│   ├── history/        # 历史进度
-│   ├── references/     # 参考资料
-│   └── trashcan/       # 待删文件暂存区
-│
-├── DOCUMENTS/          # 公开文档
-│   ├── TechStack.md    # 技术选型
-│   └── Commands.md     # 命令说明
-│
-├── .editorconfig       # 配置: 编辑器
-├── .gitattributes      # 配置: Git
-│
-├── .gitignore          # 忽略规则: Git
-│
-├── CLAUDE.md           # 协作指南
-├── CHANGELOG.md        # 变更日志
-├── README.md           # 项目自述
-└── LICENSE             # 开源证书
+├── .docs/
+├── .github/workflows/
+├── DOCUMENTS/
+│   ├── Commands.md
+│   └── TechStack.md
+├── src/
+│   ├── frontend/
+│   │   └── index.html
+│   └── main.js
+├── data/
+├── test/
+├── .env.example
+├── .env
+├── compose.yaml
+├── Dockerfile
+├── .dockerignore
+├── package.json
+├── package-lock.json
+├── eslint.config.js
+├── .prettierrc.cjs
+├── .prettierignore
+├── .editorconfig
+├── .gitattributes
+├── .gitignore
+├── CLAUDE.md
+├── CHANGELOG.md
+├── README.md
+└── LICENSE
 ```
+
+`main.js` 是后端入口，`frontend/index.html` 是空白页。`data/` 和 `test/` 为预留目录。
 
 ## 许可证
 

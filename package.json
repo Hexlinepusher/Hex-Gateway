@@ -1,0 +1,26 @@
+{
+  "name": "hex-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "用于本地实验的代理网关模板，提供 Web 前端与 Node.js 后端。",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/main.js",
+    "dev": "node --env-file-if-exists=.env --watch src/main.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "lint:check": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "form:check": "prettier --check \"**/*.{js,mjs,cjs,json,md,yml,yaml,html,css}\"",
+    "form:fix": "prettier --write \"**/*.{js,mjs,cjs,json,md,yml,yaml,html,css}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^14.0.0",
+    "prettier": "^3.8.4"
+  },
+  "engines": {
+    "node": "^22.21.1"
+  }
+}

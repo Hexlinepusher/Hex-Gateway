@@ -1,26 +1,23 @@
-# @/.github/workflows/workspace-skeleton-check.yml - 防止模板骨架文件被意外删除或遗漏
-# - ../../README.md
+name: Workspace Skeleton Check
 
-name: Workspace Skeleton Check # 工作流名称
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
-on: # 触发条件
-  push: # 推送时触发
-    branches: # 目标分支
-      - main # 主分支
-  pull_request: # PR时触发
+jobs:
+  workspace-skeleton:
+    name: Workspace skeleton
+    runs-on: ubuntu-latest
 
-jobs: # 任务列表
-  workspace-skeleton: # 工作区骨架检查
-    name: Workspace skeleton # 任务名称
-    runs-on: ubuntu-latest # 运行环境
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    steps: # 执行步骤
-      - name: Checkout repository # 拉取仓库
-        uses: actions/checkout@v4 # 官方 checkout action
-
-      - name: Check workspace skeleton files # 检查工作区骨架文件
-        shell: bash # 使用 Bash
-        run: | # 脚本内容
+      - name: Check workspace skeleton files
+        shell: bash
+        run: |
           required_files=(
             "README.md"
             "LICENSE"
