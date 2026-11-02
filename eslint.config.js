@@ -50,7 +50,13 @@ export default [
   },
 
   {
-    files: ['*.{js,mjs}', 'src/main.js', 'test/**/*.{js,mjs}'],
+    files: [
+      '*.{js,mjs}',
+      'src/main.js',
+      'src/service.js',
+      'src/backend/**/*.{js,mjs}',
+      'test/**/*.{js,mjs}',
+    ],
     languageOptions: {
       globals: globals.nodeBuiltin,
     },

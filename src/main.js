@@ -1,9 +1,16 @@
-import { readFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import readConfiguration from './backend/configuration/readConfiguration.js';
+import createGatewayServer from './backend/http/createGatewayServer.js';
+import writeLog from './backend/logging/writeLog.js';
+import createService from './service.js';
 
-const page = await readFile(new URL('./frontend/index.html', import.meta.url));
+const configuration = readConfiguration();
+const service = createService(configuration);
+const { server } = createGatewayServer({ configuration, ...service });
 
-createServer((_request, response) => {
-  response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  response.end(page);
-}).listen(Number(process.env.PORT || 3000), '0.0.0.0');
+server.on('error', (error) => {
+  writeLog('error', '服务启动失败', { message: error.message });
+  process.exitCode = 1;
+});
+server.listen(configuration.port, '0.0.0.0', () => {
+  writeLog('info', '网关已启动', { address: '0.0.0.0', port: configuration.port });
+});

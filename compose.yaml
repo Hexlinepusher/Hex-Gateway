@@ -5,5 +5,9 @@ services:
       - '0.0.0.0:${PORT:-3000}:${PORT:-3000}'
     environment:
       PORT: ${PORT:-3000}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
+      UPSTREAM_SERVICE_NAME: ${UPSTREAM_SERVICE_NAME:-gateway}
+      REQUEST_IDLE_TIMEOUT_SECONDS: ${REQUEST_IDLE_TIMEOUT_SECONDS:-300}
+      REQUEST_TOTAL_TIMEOUT_SECONDS: ${REQUEST_TOTAL_TIMEOUT_SECONDS:-600}
     volumes:
       - ./data:/app/data
