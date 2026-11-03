@@ -1,0 +1,127 @@
+:root {
+  font-family: system-ui, 'Microsoft YaHei', sans-serif;
+  color: #24313b;
+  background: #f5f6f7;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  width: min(760px, 100%);
+  margin: 48px auto;
+  padding: 0 20px;
+}
+section {
+  margin-bottom: 20px;
+  padding: 24px 28px;
+  border: 1px solid #dce1e5;
+  border-radius: 10px;
+  background: #fff;
+}
+h1,
+h2 {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 600;
+}
+h2 {
+  font-size: 18px;
+}
+.overview {
+  margin: 0;
+}
+.overview-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf0f2;
+}
+.overview-row:last-child {
+  border-bottom: 0;
+}
+dt {
+  line-height: 1.6;
+}
+dd {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.period {
+  color: #697680;
+  font-size: 12px;
+  white-space: nowrap;
+}
+button {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border: 1px solid #d1d8dd;
+  border-radius: 5px;
+  color: #485862;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+button:hover {
+  background: #f0f3f5;
+}
+button:focus-visible {
+  outline: 2px solid #477391;
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.note {
+  margin: 18px 0 0;
+  color: #697680;
+  font-size: 12px;
+}
+.status {
+  margin: 12px 0 0;
+  color: #a33232;
+  font-size: 13px;
+}
+.status:empty {
+  display: none;
+}
+#model-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  main {
+    margin: 20px auto;
+    padding: 0 12px;
+  }
+  section {
+    padding: 20px 16px;
+  }
+  .overview-row {
+    gap: 12px;
+    font-size: 14px;
+  }
+  dd {
+    gap: 8px;
+  }
+}

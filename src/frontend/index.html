@@ -2,7 +2,66 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hex-Gateway</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <script type="module" src="/assets/main.js"></script>
   </head>
-  <body></body>
+  <body>
+    <main>
+      <section aria-labelledby="overview-heading">
+        <h1 id="overview-heading">运行概览</h1>
+        <dl class="overview">
+          <div class="overview-row">
+            <dt>服务名</dt>
+            <dd id="service-name">加载中…</dd>
+          </div>
+          <div class="overview-row">
+            <dt>队列长度</dt>
+            <dd id="queue-length">加载中…</dd>
+          </div>
+          <div class="overview-row">
+            <dt>可用消费能力</dt>
+            <dd id="consumer-capacity">加载中…</dd>
+          </div>
+          <div class="overview-row">
+            <dt>上游平均延迟 <span class="period">72H</span></dt>
+            <dd>
+              <span id="upstream-latency">加载中…</span
+              ><button type="button" data-metric="upstreamLatency" aria-label="重置上游平均延迟">
+                重置
+              </button>
+            </dd>
+          </div>
+          <div class="overview-row">
+            <dt>请求平均耗时 <span class="period">72H</span></dt>
+            <dd>
+              <span id="execution-duration">加载中…</span
+              ><button type="button" data-metric="executionDuration" aria-label="重置请求平均耗时">
+                重置
+              </button>
+            </dd>
+          </div>
+          <div class="overview-row">
+            <dt>请求成功率 <span class="period">72H</span></dt>
+            <dd>
+              <span id="success-rate">加载中…</span
+              ><button type="button" data-metric="successRate" aria-label="重置请求成功率">
+                重置
+              </button>
+            </dd>
+          </div>
+        </dl>
+        <p class="note">统计范围：UTC 今天及前两天。</p>
+        <p id="overview-status" class="status" role="status"></p>
+      </section>
+      <section aria-labelledby="models-heading">
+        <h2 id="models-heading">模型列表</h2>
+        <ul id="model-list">
+          <li>加载中…</li>
+        </ul>
+        <p id="model-status" class="status" role="status"></p>
+      </section>
+    </main>
+  </body>
 </html>

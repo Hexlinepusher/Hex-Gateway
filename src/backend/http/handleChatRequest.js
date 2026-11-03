@@ -1,41 +1,59 @@
 import enqueueRequest from '../concurrency/enqueueRequest.js';
+import createGatewayError from '../errors/createGatewayError.js';
+import findModel from '../models/findModel.js';
 import validateChatRequest from '../protocols/validateChatRequest.js';
-import saveTestRequest from '../testModel/saveTestRequest.js';
+import createTestRequestSnapshot from '../testModel/createTestRequestSnapshot.js';
+import handleTestRequest from '../testModel/handleTestRequest.js';
 
 import parseRequestBody from './parseRequestBody.js';
 import readRequestBody from './readRequestBody.js';
-import sendExecutionResult from './sendExecutionResult.js';
-import sendTextResponse from './sendTextResponse.js';
-import writeStreamChunk from './writeStreamChunk.js';
+import sendShutdownResponse from './sendShutdownResponse.js';
 
 export default async function handleChatRequest(application, context) {
-  const rawBody = await readRequestBody(context.request, context.signal);
-  const body = parseRequestBody(rawBody);
-  validateChatRequest(body, application.models, context.protocol);
-  context.signal.throwIfAborted();
-  if (body.model === `${application.configuration.serviceName}-test`) {
-    const filename = await saveTestRequest(
-      application.dataDirectory,
-      context.request,
-      rawBody,
-      new Date(context.receivedAt)
-    );
-    application.log('info', '测试请求已记录', { requestId: context.uid, filename });
-    await sendTextResponse(context, body, 'OK');
+  const { httpRequest } = context;
+  const downstreamSignal = context.downstreamAbortController.signal;
+  const shutdownSignal = application.lifecycle.shutdownController.signal;
+  const rawBody = await readRequestBody(httpRequest, downstreamSignal, shutdownSignal);
+  if (application.lifecycle.isStopping || shutdownSignal.aborted) {
+    sendShutdownResponse(context, application.log);
     return;
   }
-  const result = await enqueueRequest(application.scheduler, {
+  try {
+    context.parsedBody = parseRequestBody(rawBody);
+    validateChatRequest(context.parsedBody, context.protocol);
+    if (!findModel(application.modelCatalog, context.parsedBody.model)) {
+      throw createGatewayError('Invalid Model ID', {
+        statusCode: 404,
+        code: 'model_not_found',
+        type: 'not_found_error',
+      });
+    }
+  } catch (error) {
+    application.log('request.rejected', { uid: context.uid, reason: error.message });
+    throw error;
+  }
+  if (context.parsedBody.model === `${application.configuration.serviceName}-test`) {
+    const snapshot = createTestRequestSnapshot(context, rawBody);
+    await handleTestRequest(application, context, snapshot);
+    return;
+  }
+  downstreamSignal.throwIfAborted();
+  try {
+    enqueueRequest(application.scheduler, context);
+  } catch (error) {
+    if (error.code === 'gateway_stopping') {
+      sendShutdownResponse(context, application.log);
+      return;
+    }
+    if (!downstreamSignal.aborted) {
+      application.log('request.rejected', { uid: context.uid, reason: error.message });
+    }
+    throw error;
+  }
+  application.log('request.queued', {
     uid: context.uid,
-    deadline: context.deadline,
-    signal: context.signal,
-    request: {
-      body,
-      protocol: context.protocol,
-      method: context.request.method,
-      url: context.request.url,
-      headers: context.request.headers,
-    },
-    onChunk: (chunk, executionSignal) => writeStreamChunk(context.response, chunk, executionSignal),
+    protocol: context.protocol,
+    model: context.parsedBody.model,
   });
-  sendExecutionResult(context, result);
+  application.scheduler.dispatch();
 }

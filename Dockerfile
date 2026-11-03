@@ -7,4 +7,4 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-CMD ["npm", "start"]
+CMD ["node", "--env-file-if-exists=.env", "src/main.js"]

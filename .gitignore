@@ -20,7 +20,8 @@
 !**/TEMPLATE.md
 !**/README.md
 
-/data/
+/data/*
+!/data/README.md
 *.log
 logs/
 .cache/

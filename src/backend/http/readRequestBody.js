@@ -1,6 +1,7 @@
 import createGatewayError from '../errors/createGatewayError.js';
 
-export default async function readRequestBody(request, signal) {
+export default async function readRequestBody(request, downstreamSignal, shutdownSignal) {
+  const signal = AbortSignal.any([downstreamSignal, shutdownSignal]);
   const chunks = [];
   const onData = (chunk) => chunks.push(chunk);
   let onEnd;

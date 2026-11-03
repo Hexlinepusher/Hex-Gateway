@@ -1,18 +1,24 @@
 import dispatchRequests from './dispatchRequests.js';
 
 export default function createScheduler({
-  consumers = [],
+  requestQueue,
+  consumers,
   execute,
-  idleTimeoutMs = 300_000,
-  log = () => undefined,
-} = {}) {
+  configuration,
+  statistics,
+  lifecycle,
+  log,
+}) {
+  for (const consumer of consumers) consumer.currentExecution = null;
   const scheduler = {
+    requestQueue,
     consumers,
     execute,
-    idleTimeoutMs,
+    configuration,
+    statistics,
+    lifecycle,
     log,
-    queue: [],
-    dispatching: false,
+    isDispatching: false,
   };
   scheduler.dispatch = () => dispatchRequests(scheduler);
   return scheduler;

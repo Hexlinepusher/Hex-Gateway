@@ -4,8 +4,13 @@ import sendJson from './sendJson.js';
 import serializeStreamChunk from './serializeStreamChunk.js';
 
 export default function sendError(context, error) {
-  const { response, protocol, uid } = context;
-  if (response.destroyed || response.writableEnded) return;
+  const { httpResponse: response, protocol, uid } = context;
+  if (
+    context.downstreamAbortController.signal.aborted ||
+    response.destroyed ||
+    response.writableEnded
+  )
+    return;
   const body = createErrorResponse(error, protocol, uid);
   if (response.headersSent) {
     response.end(

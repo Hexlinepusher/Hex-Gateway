@@ -1,3 +1,3 @@
 export default function createService() {
-  return { models: [], consumers: [], execute: undefined };
+  return { additionalModels: [], consumers: [], execute: undefined };
 }

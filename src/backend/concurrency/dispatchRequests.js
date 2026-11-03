@@ -1,26 +1,37 @@
-import cancelRequest from './cancelRequest.js';
-import enforceRequestDeadline from './enforceRequestDeadline.js';
-import executeRequest from './executeRequest.js';
+import executeRequest from '../execution/executeRequest.js';
+
+import findAvailableConsumer from './findAvailableConsumer.js';
+import findNextQueueEntry from './findNextQueueEntry.js';
+import lockRequest from './lockRequest.js';
 
 export default function dispatchRequests(scheduler) {
-  if (scheduler.dispatching || typeof scheduler.execute !== 'function') return;
-  scheduler.dispatching = true;
+  if (
+    scheduler.isDispatching ||
+    scheduler.lifecycle.isStopping ||
+    scheduler.lifecycle.shutdownController.signal.aborted ||
+    typeof scheduler.execute !== 'function'
+  )
+    return;
+  scheduler.isDispatching = true;
   try {
-    while (scheduler.queue.length > 0) {
-      const task = scheduler.queue[0];
-      if (task.signal?.aborted) {
-        cancelRequest(scheduler, task, task.signal.reason);
-        continue;
-      }
-      if (!enforceRequestDeadline(scheduler, task)) continue;
-      const consumer = scheduler.consumers.find(
-        (candidate) => candidate.available !== false && !candidate.busy
-      );
-      if (!consumer) break;
-      scheduler.queue.shift();
-      void executeRequest(scheduler, task, consumer);
+    while (
+      !scheduler.lifecycle.isStopping &&
+      !scheduler.lifecycle.shutdownController.signal.aborted
+    ) {
+      const queueEntry = findNextQueueEntry(scheduler.requestQueue);
+      const consumer = findAvailableConsumer(scheduler.consumers);
+      if (!queueEntry || !consumer) break;
+      const execution = lockRequest(queueEntry, consumer);
+      if (!execution) continue;
+      execution.completion = Promise.resolve().then(() => executeRequest(scheduler, execution));
+      void execution.completion.catch(() => undefined);
+      scheduler.log('execution.started', {
+        uid: queueEntry.requestContext.uid,
+        attempt: execution.number,
+        consumerId: consumer.id,
+      });
     }
   } finally {
-    scheduler.dispatching = false;
+    scheduler.isDispatching = false;
   }
 }

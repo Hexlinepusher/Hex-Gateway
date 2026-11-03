@@ -6,8 +6,8 @@ export default function authorizeRequest(request, apiKey) {
     ? request.headers.authorization.slice(7)
     : undefined;
   if (bearerToken === apiKey || request.headers['x-api-key'] === apiKey) return;
-  throw createGatewayError('网关 API Key 不正确。', {
-    statusCode: 401,
+  throw createGatewayError('Invalid API Key', {
+    statusCode: 403,
     code: 'invalid_api_key',
     type: 'authentication_error',
   });

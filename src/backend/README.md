@@ -1,63 +1,118 @@
-# 后端
+# backend/
 
-后端使用 Node.js 内置 HTTP 和文件系统能力。每个函数文件承担一个命名明确的操作，目录按职责分组。
+代理网关的公共后端，提供下游接口、模型管理、消费者调度、磁盘读写和日志。
 
-| 目录           | 入口与职责                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| configuration/ | readConfiguration 读取启动参数并转换为毫秒配置。                                                        |
-| http/          | createGatewayServer 组合模块；handleRequest 管理请求生命周期；routeRequest 分派五条路径（含空白前端）。 |
-| models/        | createModelCatalog 生成固定模型与人工追加的清单。                                                       |
-| protocols/     | 识别下游协议，校验基础请求，生成模型列表、文本响应、流式事件和错误结构。                                |
-| concurrency/   | 消费者调度、空闲计时、取消与显式重排，详见 [调度约定](concurrency/README.md)。                          |
-| storage/       | readFile、writeFile、createDirectory 执行磁盘操作。                                                     |
-| testModel/     | serializeRawRequest 保留请求内容，formatHistoryTimestamp 生成时间名，saveTestRequest 排他写入。         |
-| logging/       | writeLog 向输出流写入单行 JSON，默认标准输出。                                                          |
-| errors/        | createGatewayError 携带状态码、业务错误码和错误类型。                                                   |
+- [模板使用说明](../../DOCUMENTS/模板使用说明.md)：具体服务的入口、模型、消费者与执行接口
+- [适配需求清单](../../DOCUMENTS/适配需求清单.md)：由上游服务形态决定的设计问题
 
-## 服务接入
+## 文件组织
 
-src/service.js 的 createService 返回 models、consumers 和 execute。默认 models 与 consumers 为空，execute 未配置。固定的 default/test 模型由模板生成。
+### lifecycle/ — 启动与生命周期
 
-附加模型采用对象数组，每项包含 id，可选 displayName、created（Unix 秒）和 ownedBy。未知创建时间为 0，固定模型 ID 保留给模板。
+- **[`startGateway.js`](lifecycle/startGateway.js)**：创建共享状态，等待服务初始化、接通消费者通知并开始监听；启动失败时等待资源与日志收尾
 
-消费者数据包含 id、可选 resourceId、available 和 busy。一个对象对应一个执行名额，多对象可共享同一 resourceId。资源管理控制 available，调度执行过程维护 busy。
+- **[`stopGateway.js`](lifecycle/stopGateway.js)**：组织执行、队列、HTTP、测试保存、资源与日志收尾，重复调用共用完成结果
+- **[`registerShutdownSignals.js`](lifecycle/registerShutdownSignals.js)**：登记进程停止信号，关闭失败时设置退出状态
+- **[`waitForExecutions.js`](lifecycle/waitForExecutions.js)**：等待执行快照中的全部轮次，返回各自完成结果
+- **[`waitForTestRecords.js`](lifecycle/waitForTestRecords.js)**：等待已登记测试任务，返回各自完成结果
+- **[`recordShutdownFailure.js`](lifecycle/recordShutdownFailure.js)**：收集关闭步骤错误并记录停止失败事件
 
-execute 接收以下数据：
+### configuration/ — 启动配置
 
-| 字段       | 含义                                                                 |
-| ---------- | -------------------------------------------------------------------- |
-| uid        | 本次下游请求的稳定内部标识。                                         |
-| attempt    | 从 1 起算的执行轮次。                                                |
-| consumer   | 本轮占用的消费者对象。                                               |
-| request    | body、protocol、method、url、headers；body 为解析后的原始业务 JSON。 |
-| signal     | 本轮执行的取消信号。                                                 |
-| onActivity | 收到上游数据时调用，重置空闲计时。                                   |
-| emit       | 异步写出已经转化好的下游流事件，调用方 await 完成。                  |
+- **[`readConfiguration.js`](configuration/readConfiguration.js)**：读取并校验启动参数，将超时秒数转换为毫秒
 
-协议名称为 openai 或 anthropic。服务的请求转化、上游通信和响应转化分别实现，通过 execute 组合。
+### http/ — 下游接口
 
-非流式执行返回 { body, statusCode }，body 已符合下游协议。流式执行逐个 await emit({ event, data })，完成全部终止事件后返回 { streamed: true }。event 为 Anthropic 的 SSE 事件名，OpenAI 可以省略；data 为 JSON 对象或结束标记字符串。
+- **[`createGatewayServer.js`](http/createGatewayServer.js)**：创建 HTTP 服务器，登记连接与活动响应
+- **[`observeHttpConnections.js`](http/observeHttpConnections.js)**：记录连接的活动响应，关闭期间在全部响应结束后断开连接
+- **[`closeInactiveConnections.js`](http/closeInactiveConnections.js)**：断开没有活动响应的连接
+- **[`closeHttpServer.js`](http/closeHttpServer.js)**：停止接收连接，等待 HTTP 关闭
+- **[`listenGatewayServer.js`](http/listenGatewayServer.js)**：等待 HTTP 监听成功或失败，解除本次启动监听
+- **[`handleRequest.js`](http/handleRequest.js)**：管理请求路由、错误、日志及响应收尾
+- **[`createRequestContext.js`](http/createRequestContext.js)**：创建请求 UID、接收时刻、连接引用和下游取消状态
+- **[`observeDownstreamConnection.js`](http/observeDownstreamConnection.js)**：登记连接中断监听，返回解除监听入口
+- **[`cancelDownstreamRequest.js`](http/cancelDownstreamRequest.js)**：标记下游取消、清除队列条目并停止下游读写
+- **[`recordRequestTermination.js`](http/recordRequestTermination.js)**：记录首次提前终结的原因与日志
+- **[`routeRequest.js`](http/routeRequest.js)**：按路径和方法分派接口
+- **[`authorizeRequest.js`](http/authorizeRequest.js)**：验证下游 API Key
+- **[`handleConsoleRequest.js`](http/handleConsoleRequest.js)**：查询概览与模型清单，重置指定统计指标
+- **[`serveFrontendAsset.js`](http/serveFrontendAsset.js)**：读取并交付前端页面、JavaScript 和 CSS
+- **[`handleChatRequest.js`](http/handleChatRequest.js)**：分派本地测试模型或将请求加入执行队列
+- **[`readRequestBody.js`](http/readRequestBody.js)**：收集请求体原始字节，处理取消和读取错误
+- **[`parseRequestBody.js`](http/parseRequestBody.js)**：解析 JSON，将解析失败转换为请求错误
+- **[`sendJson.js`](http/sendJson.js)**：写出 JSON 响应与 HTTP 状态
+- **[`sendTextResponse.js`](http/sendTextResponse.js)**：按下游协议和流式选项发送本地文本响应
+- **[`deliverStreamEvent.js`](http/deliverStreamEvent.js)**：过滤过期、取消或关闭中的输出，交付本轮流事件
+- **[`sendExecutionResult.js`](http/sendExecutionResult.js)**：交付已确定的终态响应，自行处理尾部写出错误
+- **[`sendError.js`](http/sendError.js)**：写出协议对应的错误响应或流内错误
+- **[`sendShutdownResponse.js`](http/sendShutdownResponse.js)**：记录关闭终结并写出关闭响应
+- **[`serializeStreamChunk.js`](http/serializeStreamChunk.js)**：将事件名称和数据序列化为 SSE 文本
+- **[`writeStreamChunk.js`](http/writeStreamChunk.js)**：写出 SSE 数据，等待背压时响应取消
+- **[`waitForOperation.js`](http/waitForOperation.js)**：等待异步操作，在取消时结束等待
+- **[`waitForResponseFinish.js`](http/waitForResponseFinish.js)**：等待响应交付或连接关闭，清理本次监听
 
-服务抛出的错误可使用 createGatewayError(message, { statusCode, code, type })。普通执行异常转成 502 调用失败。具体上游错误的提取和语义映射归服务实现。
+### protocols/ — 下游协议
 
-服务可以将失效消费者的 available 置为 false，在实际执行结束后返回 { requeue: true }。调度仅在请求有效且响应尚未提交时重排。多个消费者共用失效账号时，由资源管理同步停用关联消费者。
+- **[`detectProtocol.js`](protocols/detectProtocol.js)**：根据路径和请求头识别协议
+- **[`validateChatRequest.js`](protocols/validateChatRequest.js)**：检查 JSON 对象、非空模型 ID 和流式开关
+- **[`createModelList.js`](protocols/createModelList.js)**：生成协议对应的模型列表
+- **[`createTextResponse.js`](protocols/createTextResponse.js)**：生成非流式文本响应
+- **[`createTextChunks.js`](protocols/createTextChunks.js)**：生成文本流事件与结束标记
+- **[`createErrorResponse.js`](protocols/createErrorResponse.js)**：生成协议对应的错误结构
 
-运行期间新增消费者或恢复 available 后，调用返回的 scheduler.dispatch() 触发领取。createGatewayServer 返回 { server, scheduler, models }，可用于服务组合和测试。
+### models/ — 模型管理
 
-## 请求收尾
+- **[`createModelCatalog.js`](models/createModelCatalog.js)**：合并固定模型和人工模型，校验 ID 并补齐元数据
 
-整体期限从 HTTP 请求被接收时开始，包含读取请求体、排队、执行和交付。重新入队保留该期限。空闲期限从 execute 开始，每次 onActivity 重置；emit 和日志输出均不重置。
+- **[`findModel.js`](models/findModel.js)**：按模型 ID 查询清单
 
-客户端断开和整体超时取消请求。空闲超时取消当前执行。下游等待可以先结束，busy 始终等待 execute 结算后才释放。服务需要在 signal 取消后终止实际执行或等待其真实终止，再结算 execute。
+### concurrency/ — 消费者调度
 
-排队按 FIFO 领取，明确重排的请求回到队尾。旧轮次的 emit/onActivity 在轮次结束后失效。
+- **[`README.md`](concurrency/README.md)**：请求入队、容量检查、原位锁定与消费者分配
 
-## 本地行为
+### execution/ — 执行与收尾
 
-/health 和空白前端免鉴权。/v1/ 下的接口在 GATEWAY_API_KEY 非空时验证 Bearer 或 x-api-key；空值表示本地实验时关闭鉴权。
+- **[`README.md`](execution/README.md)**：服务执行、每次调用的双超时、结果分类与收尾
 
-测试记录包含原始请求头（包括访问凭证）及请求体。文件使用进程本地时间命名，独占创建，冲突递增序号。测试返回 OK 前必须完成写入。
+### console/ — 控制台数据
 
-原始请求指 Node HTTP 层接收的方法、目标地址、HTTP 版本、按原顺序和大小写保存的头及完整 body 字节。传输层的分块编码等网络封装由 HTTP 层解析。
+- **[`createOverview.js`](console/createOverview.js)**：组合服务名、队列、消费能力与统计汇总，生成运行快照
 
-模型元数据的创建时间未知时为 0；本地测试响应的 token 用量为 0。模板校验基础请求字段，具体模型能力、工具与多模态内容由服务适配处理。
+### statistics/ — 统计状态
+
+- **[`getStatisticsDates.js`](statistics/getStatisticsDates.js)**：计算指定时刻对应的 UTC 今天与前两天
+- **[`createStatistics.js`](statistics/createStatistics.js)**：创建三个日期的结果、延迟和耗时初值
+- **[`updateStatisticsWindow.js`](statistics/updateStatisticsWindow.js)**：对齐 UTC 今天与前两天，保留窗口内数据
+- **[`recordExecutionStatistics.js`](statistics/recordExecutionStatistics.js)**：按执行结束日期记录本轮结果、延迟和耗时
+
+- **[`summarizeStatistics.js`](statistics/summarizeStatistics.js)**：按三天总量和各自样本数计算两个平均值与成功率
+- **[`resetStatisticsMetric.js`](statistics/resetStatisticsMetric.js)**：校准日期窗口，清空指定指标并返回日志名称
+
+### storage/ — 磁盘读写
+
+- **[`readFile.js`](storage/readFile.js)**：读取文件并返回字节数据
+- **[`writeFile.js`](storage/writeFile.js)**：写入文件，支持独占创建
+- **[`createDirectory.js`](storage/createDirectory.js)**：创建目录及其缺失的父目录
+
+### testModel/ — 测试模型
+
+- **[`createTestRequestSnapshot.js`](testModel/createTestRequestSnapshot.js)**：复制独立于 HTTP 连接的请求保存数据
+- **[`handleTestRequest.js`](testModel/handleTestRequest.js)**：登记测试任务，先响应再异步保存并记录结果
+- **[`formatHistoryTimestamp.js`](testModel/formatHistoryTimestamp.js)**：用本地时间生成历史文件时间名
+- **[`serializeRawRequest.js`](testModel/serializeRawRequest.js)**：将独立快照序列化为请求记录，保留请求头顺序、大小写和请求体字节
+- **[`saveTestRequest.js`](testModel/saveTestRequest.js)**：保存测试请求，文件名冲突时递增序号
+
+### logging/ — 统一日志
+
+- **[`createLogOutput.js`](logging/createLogOutput.js)**：建立输出完成状态与首次错误记录，接收输出流错误
+- **[`getLogEventDefinition.js`](logging/getLogEventDefinition.js)**：查询事件的固定级别与说明模板
+- **[`formatLogLine.js`](logging/formatLogLine.js)**：填充参数，生成带 UTC 时间的单行文本
+- **[`writeLog.js`](logging/writeLog.js)**：提交事件日志并隔离格式化与输出错误
+- **[`writeLogLine.js`](logging/writeLogLine.js)**：登记并提交一次写入，跟踪其完成结果
+- **[`reportLogFailure.js`](logging/reportLogFailure.js)**：保存首次日志错误，仅提交一次标准错误诊断
+- **[`waitForLogWrites.js`](logging/waitForLogWrites.js)**：等待日志及诊断写出，返回首次错误
+- **[`releaseLogOutput.js`](logging/releaseLogOutput.js)**：解除本份日志状态登记的输出流监听，保留共享流及其他监听
+
+### errors/ — 错误
+
+- **[`createGatewayError.js`](errors/createGatewayError.js)**：创建携带 HTTP 状态码、业务错误码和错误类型的错误

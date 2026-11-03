@@ -1,29 +1,21 @@
-import cancelRequest from './cancelRequest.js';
-import dispatchRequests from './dispatchRequests.js';
+import createGatewayError from '../errors/createGatewayError.js';
 
-export default function enqueueRequest(scheduler, { uid, deadline, signal, request, onChunk }) {
-  return new Promise((resolve, reject) => {
-    const task = {
-      uid,
-      deadline,
-      signal,
-      request,
-      onChunk,
-      resolve,
-      reject,
-      attempt: 0,
-      activeAttempt: null,
-      settled: false,
-      committed: false,
-    };
-    task.abortListener = () => cancelRequest(scheduler, task, signal.reason);
-    signal?.addEventListener('abort', task.abortListener, { once: true });
-    scheduler.queue.push(task);
-    if (signal?.aborted) {
-      task.abortListener();
-      return;
-    }
-    scheduler.log('info', '请求进入队列', { requestId: uid });
-    dispatchRequests(scheduler);
-  });
+export default function enqueueRequest(scheduler, requestContext) {
+  if (scheduler.lifecycle.isStopping || scheduler.lifecycle.shutdownController.signal.aborted) {
+    throw createGatewayError('Gateway Is Stopping', {
+      statusCode: 503,
+      code: 'gateway_stopping',
+    });
+  }
+  requestContext.downstreamAbortController.signal.throwIfAborted();
+  if (scheduler.requestQueue.entries.length >= scheduler.requestQueue.capacity) {
+    throw createGatewayError('Out of Request Queue Capacity', {
+      statusCode: 429,
+      code: 'request_queue_full',
+      type: 'rate_limit_error',
+    });
+  }
+  const queueEntry = { requestContext, executionCount: 0, lockedExecution: null };
+  scheduler.requestQueue.entries.push(queueEntry);
+  return queueEntry;
 }

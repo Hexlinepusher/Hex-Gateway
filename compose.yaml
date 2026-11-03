@@ -1,12 +1,15 @@
 services:
   gateway:
     build: .
+    stop_grace_period: '-1s'
     ports:
-      - '0.0.0.0:${PORT:-3000}:${PORT:-3000}'
+      - '0.0.0.0:${PORT:-8800}:${PORT:-8800}'
     environment:
-      PORT: ${PORT:-3000}
+      PORT: ${PORT:-8800}
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
-      UPSTREAM_SERVICE_NAME: ${UPSTREAM_SERVICE_NAME:-gateway}
+      UPSTREAM_SERVICE_NAME: ${UPSTREAM_SERVICE_NAME:-default_service_name}
+      REQUEST_QUEUE_CAPACITY: ${REQUEST_QUEUE_CAPACITY:-32}
+      RETRY_TIMES: ${RETRY_TIMES:-0}
       REQUEST_IDLE_TIMEOUT_SECONDS: ${REQUEST_IDLE_TIMEOUT_SECONDS:-300}
       REQUEST_TOTAL_TIMEOUT_SECONDS: ${REQUEST_TOTAL_TIMEOUT_SECONDS:-600}
     volumes:
