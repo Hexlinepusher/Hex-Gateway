@@ -1,5 +1,6 @@
 services:
   gateway:
+    image: '${COMPOSE_PROJECT_NAME}:latest'
     build: .
     stop_grace_period: '-1s'
     ports:

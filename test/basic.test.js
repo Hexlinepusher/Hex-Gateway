@@ -25,12 +25,14 @@ import formatLogLine from '../src/backend/logging/formatLogLine.js';
 import releaseLogOutput from '../src/backend/logging/releaseLogOutput.js';
 import waitForLogWrites from '../src/backend/logging/waitForLogWrites.js';
 import writeLog from '../src/backend/logging/writeLog.js';
+import createModelCatalog from '../src/backend/models/createModelCatalog.js';
 import createStatistics from '../src/backend/statistics/createStatistics.js';
 import recordExecutionStatistics from '../src/backend/statistics/recordExecutionStatistics.js';
 import resetStatisticsMetric from '../src/backend/statistics/resetStatisticsMetric.js';
 import summarizeStatistics from '../src/backend/statistics/summarizeStatistics.js';
 import createTestRequestSnapshot from '../src/backend/testModel/createTestRequestSnapshot.js';
 import handleTestRequest from '../src/backend/testModel/handleTestRequest.js';
+import serializeTestRequest from '../src/backend/testModel/serializeTestRequest.js';
 import runOverviewOperation from '../src/frontend/runOverviewOperation.js';
 
 test('基础测试', { timeout: 15_000 }, async (context) => {
@@ -97,7 +99,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
       serviceInputs.push(dependencies);
       await Promise.resolve();
       return {
-        additionalModels: [],
+        additionalModels: [{ id: 'basic-chat' }],
         consumers: [consumer, backupConsumer],
         execute: async (operations) => {
           const {
@@ -262,7 +264,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
       signal: context.signal,
     });
   const testBody = {
-    model: 'basic-test',
+    model: '[basic]Gateway-Test',
     messages: [{ role: 'user', content: '你好' }],
     max_tokens: 16,
   };
@@ -342,18 +344,29 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     assert.equal(response.status, 200);
     assert.deepEqual(
       body.data.map((model) => model.id),
-      ['basic-default', 'basic-test']
+      ['[basic]Gateway-Test', 'basic-chat']
     );
     if (headers['anthropic-version']) assert.equal(body.has_more, false);
     else assert.equal(body.object, 'list');
   }
 
-  const originalBodies = [];
+  assert.deepEqual(
+    createModelCatalog('empty').map((model) => model.id),
+    ['[empty]Gateway-Test']
+  );
+  assert.deepEqual(
+    createModelCatalog('custom', [{ id: 'custom-default' }]).map((model) => model.id),
+    ['[custom]Gateway-Test', 'custom-default']
+  );
+
+  const expectedBodies = [];
   for (const path of ['/v1/chat/completions', '/v1/messages']) {
     const anthropic = path === '/v1/messages';
     for (const stream of [false, true]) {
-      const originalBody = JSON.stringify({ ...testBody, stream }, null, 2) + '\n';
-      originalBodies.push(Buffer.from(originalBody).toString('base64'));
+      const originalBody = ' \n' + JSON.stringify({ ...testBody, stream }) + '\n';
+      expectedBodies.push(
+        Buffer.from(JSON.stringify({ ...testBody, stream }, null, 2)).toString('base64')
+      );
       const response = await sendRequest(path + '?source=basic', originalBody, {
         'x-test-header': 'caf\u00e9',
         ...(anthropic ? { authorization: '', 'x-api-key': 'basic-test-key' } : {}),
@@ -396,7 +409,35 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     assert.ok(record.subarray(0, separator).includes(Buffer.from('caf\u00e9', 'latin1')));
     recordedBodies.push(record.subarray(separator + 4).toString('base64'));
   }
-  assert.deepEqual(recordedBodies.sort(), originalBodies.sort());
+  assert.deepEqual(recordedBodies.sort(), expectedBodies.sort());
+
+  const escapedSnapshot = {
+    method: 'POST',
+    requestTarget: '/v1/messages?source=escaped',
+    httpVersion: '1.1',
+    rawHeaders: ['X-Original', 'café', 'X-Repeated', 'first', 'X-Repeated', 'second'],
+    rawBody: Buffer.from('{"text":"\\u4f60\\u597d\\n\\"引号\\"\\\\path","literal":"\\\\n"}'),
+  };
+  const expectedHeaders = Buffer.from(
+    'POST /v1/messages?source=escaped HTTP/1.1\r\nX-Original: café\r\nX-Repeated: first\r\nX-Repeated: second\r\n\r\n',
+    'latin1'
+  );
+  const expectedBody = Buffer.from(
+    ['{', '  "text": "你好\\n\\"引号\\"\\\\path",', '  "literal": "\\\\n"', '}'].join('\n')
+  );
+  assert.deepEqual(
+    serializeTestRequest(escapedSnapshot),
+    Buffer.concat([expectedHeaders, expectedBody])
+  );
+  assert.deepEqual(JSON.parse(expectedBody.toString('utf8')), {
+    text: '你好\n"引号"\\path',
+    literal: '\\n',
+  });
+  const invalidJson = Buffer.from([0x7b, 0x22, 0xff, 0x00]);
+  assert.deepEqual(
+    serializeTestRequest({ ...escapedSnapshot, rawBody: invalidJson }),
+    Buffer.concat([expectedHeaders, invalidJson])
+  );
 
   const saveFailureServer = createGatewayServer(
     handleRequest.bind(null, {
@@ -463,23 +504,25 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
         rejectedBefore + 1
       );
     }
-    const unknownModel = await sendRequest(path, { model: 'missing' });
-    assert.equal(unknownModel.status, 404);
-    assert.equal((await unknownModel.json()).error.message, 'Invalid Model ID');
-    assert.equal(
-      logLines.filter(
-        (line) =>
-          line.includes('[request.rejected]') &&
-          line.includes(unknownModel.headers.get('x-request-id'))
-      ).length,
-      1
-    );
-    const minimal = await sendRequest(path, { model: 'basic-test' });
+    for (const model of ['missing', 'basic-default', 'basic-test']) {
+      const unknownModel = await sendRequest(path, { model });
+      assert.equal(unknownModel.status, 404);
+      assert.equal((await unknownModel.json()).error.message, 'Invalid Model ID');
+      assert.equal(
+        logLines.filter(
+          (line) =>
+            line.includes('[request.rejected]') &&
+            line.includes(unknownModel.headers.get('x-request-id'))
+        ).length,
+        1
+      );
+    }
+    const minimal = await sendRequest(path, { model: '[basic]Gateway-Test' });
     assert.equal(minimal.status, 200);
     await minimal.json();
   }
   const flexible = await sendRequest('/v1/chat/completions', {
-    model: 'basic-test',
+    model: '[basic]Gateway-Test',
     stream: null,
     messages: { serviceSpecific: true },
     temperature: 9,
@@ -494,10 +537,10 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   }
   configuration.apiKey = environment.GATEWAY_API_KEY;
 
-  const first = sendRequest('/v1/chat/completions', { ...testBody, model: 'basic-default' });
+  const first = sendRequest('/v1/chat/completions', { ...testBody, model: 'basic-chat' });
   const second = sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
     messages: [{ role: 'user', content: '第二条' }],
   });
   await queueReady.promise;
@@ -527,13 +570,13 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   nextQueued = Promise.withResolvers();
   const requeued = sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
     messages: [{ role: 'user', content: '重排' }],
   });
   await nextQueued.promise;
   const afterRetry = sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
     messages: [{ role: 'user', content: '重试后下一条' }],
   });
   await queueReady.promise;
@@ -567,7 +610,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   backupConsumer.available = false;
   const retryLimitResponse = await sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
     messages: [{ role: 'user', content: '重试超限' }],
   });
   const terminatedRequestIds = [retryLimitResponse.headers.get('x-request-id')];
@@ -582,7 +625,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     const attemptsBefore = attempts.length;
     const response = await sendRequest('/v1/chat/completions', {
       ...testBody,
-      model: 'basic-default',
+      model: 'basic-chat',
       messages: [{ role: 'user', content }],
     });
     assert.equal(response.status, content === '流式后重试' ? 200 : 503);
@@ -597,7 +640,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   nextQueued = Promise.withResolvers();
   const waitingRequest = sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
   });
   await nextQueued.promise;
   await delay(60, undefined, { signal: context.signal });
@@ -613,7 +656,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     configuration.totalTimeoutMs = content === '整体超时' ? 20 : 100;
     const response = await sendRequest('/v1/chat/completions', {
       ...testBody,
-      model: 'basic-default',
+      model: 'basic-chat',
       messages: [{ role: 'user', content }],
     });
     assert.equal(response.status, content.includes('计时回调异常') ? 500 : 504);
@@ -632,7 +675,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   configuration.totalTimeoutMs = 5_000;
   const tracked = await sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
     messages: [{ role: 'user', content: '调用计时' }],
   });
   assert.equal(tracked.status, 200);
@@ -651,7 +694,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
       headers: { 'content-type': 'application/json', authorization: 'Bearer basic-test-key' },
       body: JSON.stringify({
         ...testBody,
-        model: 'basic-default',
+        model: 'basic-chat',
         messages: [{ role: 'user', content }],
       }),
       signal: AbortSignal.any([context.signal, cancellation.signal]),
@@ -665,11 +708,11 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
       requestQueue.capacity = 1;
       const overflow = await sendRequest('/v1/chat/completions', {
         ...testBody,
-        model: 'basic-default',
+        model: 'basic-chat',
       });
       assert.equal(overflow.status, 429);
       assert.equal((await overflow.json()).error.message, 'Out of Request Queue Capacity');
-      const localTest = await sendRequest('/v1/messages', { model: 'basic-test' });
+      const localTest = await sendRequest('/v1/messages', { model: '[basic]Gateway-Test' });
       assert.equal(localTest.status, 200);
       await localTest.json();
       requestQueue.capacity = 32;
@@ -704,7 +747,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     ).length;
     const upstreamRejection = await sendRequest('/v1/chat/completions', {
       ...testBody,
-      model: 'basic-default',
+      model: 'basic-chat',
       messages: [{ role: 'user', content: '上游拒绝' }],
       upstreamStatusCode: statusCode,
       upstreamErrorCode: errorCode,
@@ -725,7 +768,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   ]) {
     const response = await sendRequest('/v1/chat/completions', {
       ...testBody,
-      model: 'basic-default',
+      model: 'basic-chat',
       messages: [{ role: 'user', content }],
     });
     assert.equal(response.status, status);
@@ -889,10 +932,10 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   assert.equal(
     formatLogLine(
       'request.queued',
-      { uid: 'id\r\nnext', protocol: 'openai', model: 'basic-default' },
+      { uid: 'id\r\nnext', protocol: 'openai', model: 'basic-chat' },
       new Date('2026-11-03T00:00:00.000Z')
     ),
-    '[2026-11-03T00:00:00.000Z] [INFO] [request.queued] 新请求id\\r\\nnext：openai|basic-default\n'
+    '[2026-11-03T00:00:00.000Z] [INFO] [request.queued] 新请求id\\r\\nnext：openai|basic-chat\n'
   );
 
   await Promise.all([...lifecycle.pendingTestRecords]);
@@ -916,10 +959,10 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     localResponse
   );
   localContext.protocol = 'anthropic';
-  localContext.parsedBody = { model: 'basic-test' };
+  localContext.parsedBody = { model: '[basic]Gateway-Test' };
   const localSnapshot = createTestRequestSnapshot(
     localContext,
-    Buffer.from('{"model":"basic-test"}')
+    Buffer.from('{"model":"[basic]Gateway-Test"}')
   );
   const localRecordsDirectory = join(dataDirectory, 'local-response-order');
   const localResponseCompleted = handleTestRequest(
@@ -944,7 +987,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     },
   });
   const disconnectedContext = createRequestContext(localContext.httpRequest, disconnectedResponse);
-  disconnectedContext.parsedBody = { model: 'basic-test' };
+  disconnectedContext.parsedBody = { model: '[basic]Gateway-Test' };
   const disconnectedSnapshot = createTestRequestSnapshot(
     disconnectedContext,
     localSnapshot.rawBody
@@ -1032,7 +1075,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
       environment,
       logOutput,
       createService: () => ({
-        additionalModels: [{ id: 'basic-default' }],
+        additionalModels: [{ id: '[basic]Gateway-Test' }],
         consumers: [],
         async closeResources() {
           throw cleanupError;
@@ -1056,7 +1099,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
   outputError = new Error('输出不可用');
   const healthyResponse = await sendRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
   });
   assert.equal(healthyResponse.status, 200);
   assert.equal((await healthyResponse.json()).content, '你好');
@@ -1165,7 +1208,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
         { once: true }
       );
       return {
-        additionalModels: [],
+        additionalModels: [{ id: 'basic-chat' }],
         consumers: shutdownConsumers,
         execute: async ({ request, deliverStreamEvent }) => {
           if (request.body.stream) {
@@ -1207,18 +1250,18 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     });
   const closingNormal = shutdownRequest('/v1/chat/completions', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
   });
   const closingStream = await shutdownRequest('/v1/messages', {
     ...testBody,
-    model: 'basic-default',
+    model: 'basic-chat',
     stream: true,
   });
   const cancelDuringExecution = new AbortController();
   const closingCancelled = assert.rejects(
     shutdownRequest(
       '/v1/chat/completions',
-      { ...testBody, model: 'basic-default' },
+      { ...testBody, model: 'basic-chat' },
       AbortSignal.any([context.signal, cancelDuringExecution.signal])
     ),
     { name: 'AbortError' }
@@ -1240,7 +1283,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     pipelinedResponse += chunk.toString();
   });
   const pipelinedClosed = once(pipelinedSocket, 'close');
-  const pipelinedBody = JSON.stringify({ ...testBody, model: 'basic-default' });
+  const pipelinedBody = JSON.stringify({ ...testBody, model: 'basic-chat' });
   const pipelinedRequest =
     'POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer basic-test-key\r\nContent-Type: application/json\r\nContent-Length: ' +
     Buffer.byteLength(pipelinedBody) +
@@ -1307,10 +1350,10 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     },
     shutdownRecordResponse
   );
-  shutdownRecordContext.parsedBody = { model: 'basic-test' };
+  shutdownRecordContext.parsedBody = { model: '[basic]Gateway-Test' };
   const shutdownRecordSnapshot = createTestRequestSnapshot(
     shutdownRecordContext,
-    Buffer.from('{"model":"basic-test"}')
+    Buffer.from('{"model":"[basic]Gateway-Test"}')
   );
   const shutdownRecordResponseCompleted = handleTestRequest(
     {
@@ -1529,7 +1572,7 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
     },
     racingContext
   );
-  racingRequest.end('{"model":"basic-test"}');
+  racingRequest.end('{"model":"[basic]Gateway-Test"}');
   racingLifecycle.isStopping = true;
   await racingHandling;
   assert.equal(racingResponse.statusCode, 503);
@@ -1580,6 +1623,11 @@ test('基础测试', { timeout: 15_000 }, async (context) => {
       releaseLogOutput(ownedLoggingGateway.logOutput);
     });
     assert.equal(ownedLoggingGateway.lifecycle.ownsLogOutput, true);
+    assert.deepEqual(ownedLoggingGateway.service.additionalModels, []);
+    assert.deepEqual(
+      ownedLoggingGateway.modelCatalog.map((model) => model.id),
+      ['[basic]Gateway-Test']
+    );
     assert.equal(process.stdout.listenerCount('error'), stdoutErrorListeners.length + 1);
     assert.equal(process.stderr.listenerCount('error'), stderrErrorListeners.length + 1);
     if (failLogging) {

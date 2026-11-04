@@ -32,7 +32,7 @@ export default async function handleChatRequest(application, context) {
     application.log('request.rejected', { uid: context.uid, reason: error.message });
     throw error;
   }
-  if (context.parsedBody.model === `${application.configuration.serviceName}-test`) {
+  if (context.parsedBody.model === `[${application.configuration.serviceName}]Gateway-Test`) {
     const snapshot = createTestRequestSnapshot(context, rawBody);
     await handleTestRequest(application, context, snapshot);
     return;

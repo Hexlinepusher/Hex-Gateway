@@ -6,11 +6,7 @@ export default function createModelCatalog(serviceName, additionalModels = []) {
     throw new TypeError('附加模型必须是数组。');
   }
 
-  const entries = [
-    { id: `${serviceName}-default` },
-    { id: `${serviceName}-test` },
-    ...additionalModels,
-  ];
+  const entries = [{ id: `[${serviceName}]Gateway-Test` }, ...additionalModels];
   const identifiers = new Set();
   const models = [];
 

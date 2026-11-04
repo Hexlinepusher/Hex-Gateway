@@ -4,12 +4,12 @@ import createDirectory from '../storage/createDirectory.js';
 import writeFile from '../storage/writeFile.js';
 
 import formatHistoryTimestamp from './formatHistoryTimestamp.js';
-import serializeRawRequest from './serializeRawRequest.js';
+import serializeTestRequest from './serializeTestRequest.js';
 
 export default async function saveTestRequest(dataDirectory, snapshot) {
   const directory = join(dataDirectory, 'test_history');
   const timestamp = formatHistoryTimestamp(new Date(snapshot.receivedAt));
-  const content = serializeRawRequest(snapshot);
+  const content = serializeTestRequest(snapshot);
   await createDirectory(directory);
   for (let index = 0; ; index += 1) {
     const suffix = index === 0 ? '' : `-${String(index).padStart(3, '0')}`;

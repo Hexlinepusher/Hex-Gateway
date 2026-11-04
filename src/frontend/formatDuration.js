@@ -1,3 +1,3 @@
 export default function formatDuration(milliseconds) {
-  return milliseconds === null ? '—' : `${Math.round(milliseconds)} ms`;
+  return milliseconds === null ? '—' : `${(milliseconds / 1000).toFixed(2)} s`;
 }

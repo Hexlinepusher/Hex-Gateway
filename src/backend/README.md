@@ -62,7 +62,7 @@
 
 ### models/ — 模型管理
 
-- **[`createModelCatalog.js`](models/createModelCatalog.js)**：合并固定模型和人工模型，校验 ID 并补齐元数据
+- **[`createModelCatalog.js`](models/createModelCatalog.js)**：合并动态测试模型 `[${服务名}]Gateway-Test` 与服务显式提供的普通模型，校验 ID 并补齐元数据
 
 - **[`findModel.js`](models/findModel.js)**：按模型 ID 查询清单
 
@@ -99,7 +99,8 @@
 - **[`createTestRequestSnapshot.js`](testModel/createTestRequestSnapshot.js)**：复制独立于 HTTP 连接的请求保存数据
 - **[`handleTestRequest.js`](testModel/handleTestRequest.js)**：登记测试任务，先响应再异步保存并记录结果
 - **[`formatHistoryTimestamp.js`](testModel/formatHistoryTimestamp.js)**：用本地时间生成历史文件时间名
-- **[`serializeRawRequest.js`](testModel/serializeRawRequest.js)**：将独立快照序列化为请求记录，保留请求头顺序、大小写和请求体字节
+- **[`formatTestRequestBody.js`](testModel/formatTestRequestBody.js)**：将 JSON 正文格式化为 2 个空格缩进的 UTF-8 内容，解析失败时保留原字节
+- **[`serializeTestRequest.js`](testModel/serializeTestRequest.js)**：将独立快照序列化为请求记录，保留请求行与请求头，使用格式化后的正文
 - **[`saveTestRequest.js`](testModel/saveTestRequest.js)**：保存测试请求，文件名冲突时递增序号
 
 ### logging/ — 统一日志
